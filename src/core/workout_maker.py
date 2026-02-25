@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 from core.models import Muscle
@@ -7,7 +7,31 @@ from repository.exercises import EXERCISES
 from repository.recovery import TRAINED_THRESHOLD, RECOVERY
 
 last_trained: dict[Muscle, datetime] = {}
+import json
+from pathlib import Path
+from datetime import datetime, timezone
 
+STATE_PATH = Path("state_last_trained.json")
+
+def load_state() -> None:
+    global last_trained
+    if not STATE_PATH.exists():
+        return
+
+    data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    loaded: dict[Muscle, datetime] = {}
+
+    for k, v in data.items():
+        try:
+            loaded[Muscle(k)] = datetime.fromisoformat(v)
+        except Exception:
+            continue
+
+    last_trained = loaded
+
+def save_state() -> None:
+    data = {m.value: dt.isoformat() for m, dt in last_trained.items()}
+    STATE_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 @dataclass(frozen=True)
 class PerformedExercise:
@@ -52,9 +76,16 @@ def muscle_load(performed: list[PerformedExercise]) -> dict[Muscle, float]:
 
 def record_workout(performed: list[PerformedExercise], at: datetime) -> dict[Muscle, float]:
     load = muscle_load(performed)
+    changed = False
+
     for m, l in load.items():
         if l >= TRAINED_THRESHOLD.get(m, 10.0):
             last_trained[m] = at
+            changed = True
+
+    if changed:
+        save_state()
+
     return load
 
 def trainable_muscles(now: datetime) -> list[Muscle]:
@@ -65,17 +96,62 @@ def trainable_muscles(now: datetime) -> list[Muscle]:
             out.append(m)
     return out
 
+
+def generate_workout(now: datetime, reps: int = 30) -> Workout:
+    candidates = trainable_muscles(now)
+
+    def status_priority(m: Muscle) -> int:
+        status = recovery_status(m, now)
+        if status == RecoveryStatus.OVERDUE:
+            return 0
+        if status == RecoveryStatus.READY:
+            return 1
+        if status == RecoveryStatus.OPTIMAL:
+            return 2
+        return 3
+
+    candidates.sort(key=status_priority)
+
+    performed: list[PerformedExercise] = []
+    used_exercise_ids: set[str] = set()
+    exercise_limit = 5
+    # exercises_added = 0
+    for muscle in candidates:
+        status = recovery_status(muscle, now)
+        if status not in (RecoveryStatus.READY, RecoveryStatus.OPTIMAL, RecoveryStatus.OVERDUE):
+            continue
+
+        best_id: str | None = None
+        best_activation = 0.0
+
+        for ex_id, ex in EXERCISES.items():
+            activation = ex.muscles.get(muscle, 0.0)
+            if activation <= 0.0:
+                continue
+            if ex_id in used_exercise_ids:
+                continue
+            if activation > best_activation:
+                best_activation = activation
+                best_id = ex_id
+
+        if best_id is None:
+            continue
+
+        used_exercise_ids.add(best_id)
+        performed.append(PerformedExercise(exercise_id=best_id, reps=reps))
+        if len(performed) >= exercise_limit:
+            return Workout(at=now, items=performed)
+
+    return Workout(at=now, items=performed)
+
+
 def main() -> None:
-    # - 2026-02-10: push workout
-    # - 2026-02-11: pull workout
-    # - 2026-02-13: check what's trainable (today-ish)
 
     def show_status(now: datetime) -> None:
-        print(f"\n=== Status @ {now.isoformat(sep=' ', timespec='minutes')} ===")
+        print(f"=== Status @ {now.isoformat(sep=' ', timespec='minutes')} ===")
         trainable = trainable_muscles(now)
         print("Trainable muscles:", ", ".join(m.value for m in trainable))
 
-        # Show a few common muscles explicitly (edit to taste)
         for m in [
             Muscle.CHEST,
             Muscle.TRICEPS,
@@ -90,51 +166,33 @@ def main() -> None:
         ]:
             print(f"{m.value:12s} -> {recovery_status(m, now).value}")
 
-    show_status(datetime(2026, 2, 9, 20, 0))
-    # 1) Push day: 60 pushups + 30 lateral raises + 30 triceps kickbacks
-    t1 = datetime(2026, 2, 10, 18, 0)
-    push_day = [
-        PerformedExercise("push_up", reps=60),
-        PerformedExercise("dumbbell_lateral_raise", reps=30),
-        PerformedExercise("dumbbell_triceps_kickback", reps=30),
-    ]
-    load1 = record_workout(push_day, at=t1)
-    print(f"\nRecorded workout @ {t1.isoformat(sep=' ', timespec='minutes')}")
-    for m, l in sorted(load1.items(), key=lambda x: x[0].value):
-        print(f"  {m.value:12s}: {l:.1f}")
+    def new_day(t: datetime, i) -> None:
+        print("\n=== New Day ===")
+        print(f"======================================================= ")
+        print(f"======================================================= ")
+        print(f"======================================================= ")
+        print(f"before workout \({t.strftime('%a')}\) {t.isoformat(sep=' ', timespec='minutes')}:")
 
-    show_status(datetime(2026, 2, 10, 20, 0))
+        show_status(t)
+        workout = generate_workout(t, reps=30)
+        print(f"\nGenerated workout{i}:")
+        for exercise in workout.items:
+            print(f"  - {EXERCISES[exercise.exercise_id].name} ({exercise.exercise_id}): {exercise.reps} reps")
+        load = record_workout(workout.items, at=t)
+        print(f"\nRecorded workout @ {t.isoformat(sep=' ', timespec='minutes')}")
+        for m, l in sorted(load.items(), key=lambda x: x[0].value):
+            print(f"  {m.value:12s}: {l:.1f}")
+        print(f"After workout \({t.strftime('%a')}\) {t.isoformat(sep=' ', timespec='minutes')}:")
 
-    # 2) Pull day: 40 pullups + 40 barbell rows + 30 curls
-    t2 = datetime(2026, 2, 11, 18, 0)
-    pull_day = [
-        PerformedExercise("pull_up", reps=40),
-        PerformedExercise("barbell_bent_over_row", reps=40),
-        PerformedExercise("barbell_curl", reps=30),
-    ]
-    load2 = record_workout(pull_day, at=t2)
-    print(f"\nRecorded workout @ {t2.isoformat(sep=' ', timespec='minutes')}")
-    for m, l in sorted(load2.items(), key=lambda x: x[0].value):
-        print(f"  {m.value:12s}: {l:.1f}")
+        show_status(t)
 
-    show_status(datetime(2026, 2, 11, 20, 0))  # same evening
 
-    # 3) Check later (today-ish)
-    show_status(datetime(2026, 2, 13, 9, 0))
+    now = datetime.now()
+    for i in range(30):
+        new_day(now, i)
+        now = now + timedelta(days=1)
 
-    # Optional: Leg day and check again
-    t3 = datetime(2026, 2, 13, 18, 0)
-    leg_day = [
-        PerformedExercise("barbell_back_squat", reps=40),
-        PerformedExercise("rdl", reps=30),
-        PerformedExercise("calf_raise", reps=60),
-    ]
-    load3 = record_workout(leg_day, at=t3)
-    print(f"\nRecorded workout @ {t3.isoformat(sep=' ', timespec='minutes')}")
-    for m, l in sorted(load3.items(), key=lambda x: x[0].value):
-        print(f"  {m.value:12s}: {l:.1f}")
 
-    show_status(datetime(2026, 2, 14, 9, 0))
 
 
 if __name__ == "__main__":

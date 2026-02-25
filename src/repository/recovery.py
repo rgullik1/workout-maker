@@ -32,10 +32,10 @@ RECOVERY: dict[Muscle, RecoveryWindow] = {
 
     # Lower body
     Muscle.QUADS: RecoveryWindow(timedelta(days=3), timedelta(days=5)),
-    Muscle.HAMSTRINGS: RecoveryWindow(timedelta(days=2), timedelta(days=4)),
-    Muscle.GLUTES: RecoveryWindow(timedelta(days=2), timedelta(days=4)),
-    Muscle.CALVES: RecoveryWindow(timedelta(days=1), timedelta(days=3)),
-    Muscle.HIP_FLEXORS: RecoveryWindow(timedelta(days=1), timedelta(days=2)),
+    Muscle.HAMSTRINGS: RecoveryWindow(timedelta(days=3), timedelta(days=4)),
+    Muscle.GLUTES: RecoveryWindow(timedelta(days=3), timedelta(days=4)),
+    Muscle.CALVES: RecoveryWindow(timedelta(days=2), timedelta(days=3)),
+    Muscle.HIP_FLEXORS: RecoveryWindow(timedelta(days=2), timedelta(days=3)),
     Muscle.ADDUCTORS: RecoveryWindow(timedelta(days=2), timedelta(days=3)),
     Muscle.ABDUCTORS: RecoveryWindow(timedelta(days=2), timedelta(days=3)),
 }

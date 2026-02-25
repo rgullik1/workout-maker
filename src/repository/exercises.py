@@ -52,7 +52,6 @@ EXERCISES: dict[str, Exercise] = {
             Muscle.TRICEPS: 1.0,
         },
     ),
-
     # ---------------- PULL ----------------
     "pull_up": Exercise(
         id="pull_up",
@@ -110,7 +109,14 @@ EXERCISES: dict[str, Exercise] = {
             Muscle.FOREARMS: 0.7,
         },
     ),
-
+    "shrugs": Exercise(
+        id="shrugs",
+        name="Shrugs",
+        muscles={
+            Muscle.TRAPS: 1,
+            Muscle.FOREARMS: 0.2,
+        },
+    ),
     # ---------------- LEGS ----------------
     "barbell_back_squat": Exercise(
         id="barbell_back_squat",
@@ -148,7 +154,6 @@ EXERCISES: dict[str, Exercise] = {
             Muscle.CALVES: 1.0,
         },
     ),
-
     # ---------------- CORE ----------------
     "plank": Exercise(
         id="plank",
