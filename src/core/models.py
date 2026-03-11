@@ -2,6 +2,7 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import Mapping
 
+
 class Muscle(str, Enum):
     CHEST = "chest"
     FRONT_DELTS = "front_delts"

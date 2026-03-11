@@ -5,13 +5,12 @@ from enum import Enum
 from core.models import Muscle
 from repository.exercises import EXERCISES
 from repository.recovery import TRAINED_THRESHOLD, RECOVERY
-
-last_trained: dict[Muscle, datetime] = {}
 import json
 from pathlib import Path
-from datetime import datetime, timezone
 
+last_trained: dict[Muscle, datetime] = {}
 STATE_PATH = Path("state_last_trained.json")
+
 
 def load_state() -> None:
     global last_trained
@@ -29,14 +28,17 @@ def load_state() -> None:
 
     last_trained = loaded
 
+
 def save_state() -> None:
     data = {m.value: dt.isoformat() for m, dt in last_trained.items()}
     STATE_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
 
 @dataclass(frozen=True)
 class PerformedExercise:
     exercise_id: str
     reps: int
+
 
 @dataclass(frozen=True)
 class Workout:
@@ -50,6 +52,7 @@ class RecoveryStatus(str, Enum):
     OPTIMAL = "optimal"
     OVERDUE = "overdue"
 
+
 def recovery_status(muscle: Muscle, now: datetime) -> RecoveryStatus:
     last = last_trained.get(muscle)
     if last is None:
@@ -61,6 +64,7 @@ def recovery_status(muscle: Muscle, now: datetime) -> RecoveryStatus:
     if now <= last + w.max:
         return RecoveryStatus.OPTIMAL
     return RecoveryStatus.OVERDUE
+
 
 def muscle_load(performed: list[PerformedExercise]) -> dict[Muscle, float]:
     load: dict[Muscle, float] = {}
@@ -74,13 +78,15 @@ def muscle_load(performed: list[PerformedExercise]) -> dict[Muscle, float]:
     return load
 
 
-def record_workout(performed: list[PerformedExercise], at: datetime) -> dict[Muscle, float]:
+def record_workout(
+    performed: list[PerformedExercise], at: datetime
+) -> dict[Muscle, float]:
     load = muscle_load(performed)
     changed = False
 
-    for m, l in load.items():
-        if l >= TRAINED_THRESHOLD.get(m, 10.0):
-            last_trained[m] = at
+    for muscle, load_scalar in load.items():
+        if load_scalar >= TRAINED_THRESHOLD.get(muscle, 10.0):
+            last_trained[muscle] = at
             changed = True
 
     if changed:
@@ -88,11 +94,16 @@ def record_workout(performed: list[PerformedExercise], at: datetime) -> dict[Mus
 
     return load
 
+
 def trainable_muscles(now: datetime) -> list[Muscle]:
     out: list[Muscle] = []
     for m in RECOVERY.keys():
         status = recovery_status(m, now)
-        if status in (RecoveryStatus.OPTIMAL, RecoveryStatus.OVERDUE, RecoveryStatus.READY):
+        if status in (
+            RecoveryStatus.OPTIMAL,
+            RecoveryStatus.OVERDUE,
+            RecoveryStatus.READY,
+        ):
             out.append(m)
     return out
 
@@ -118,7 +129,11 @@ def generate_workout(now: datetime, reps: int = 30) -> Workout:
     # exercises_added = 0
     for muscle in candidates:
         status = recovery_status(muscle, now)
-        if status not in (RecoveryStatus.READY, RecoveryStatus.OPTIMAL, RecoveryStatus.OVERDUE):
+        if status not in (
+            RecoveryStatus.READY,
+            RecoveryStatus.OPTIMAL,
+            RecoveryStatus.OVERDUE,
+        ):
             continue
 
         best_id: str | None = None
@@ -146,7 +161,6 @@ def generate_workout(now: datetime, reps: int = 30) -> Workout:
 
 
 def main() -> None:
-
     def show_status(now: datetime) -> None:
         print(f"=== Status @ {now.isoformat(sep=' ', timespec='minutes')} ===")
         trainable = trainable_muscles(now)
@@ -168,31 +182,27 @@ def main() -> None:
 
     def new_day(t: datetime, i) -> None:
         print("\n=== New Day ===")
-        print(f"======================================================= ")
-        print(f"======================================================= ")
-        print(f"======================================================= ")
-        print(f"before workout \({t.strftime('%a')}\) {t.isoformat(sep=' ', timespec='minutes')}:")
+        print("======================================================= ")
+        print("======================================================= ")
+        print("======================================================= ")
 
         show_status(t)
         workout = generate_workout(t, reps=30)
         print(f"\nGenerated workout{i}:")
         for exercise in workout.items:
-            print(f"  - {EXERCISES[exercise.exercise_id].name} ({exercise.exercise_id}): {exercise.reps} reps")
+            print(
+                f"  - {EXERCISES[exercise.exercise_id].name} ({exercise.exercise_id}): {exercise.reps} reps"
+            )
         load = record_workout(workout.items, at=t)
         print(f"\nRecorded workout @ {t.isoformat(sep=' ', timespec='minutes')}")
-        for m, l in sorted(load.items(), key=lambda x: x[0].value):
-            print(f"  {m.value:12s}: {l:.1f}")
-        print(f"After workout \({t.strftime('%a')}\) {t.isoformat(sep=' ', timespec='minutes')}:")
-
+        for muscle, load_scalar in sorted(load.items(), key=lambda x: x[0].value):
+            print(f"  {muscle.value:12s}: {load_scalar:.1f}")
         show_status(t)
-
 
     now = datetime.now()
     for i in range(30):
         new_day(now, i)
         now = now + timedelta(days=1)
-
-
 
 
 if __name__ == "__main__":

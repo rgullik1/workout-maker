@@ -6,11 +6,11 @@ import core.workout_maker as wm
 from fastapi.middleware.cors import CORSMiddleware
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     wm.load_state()
     yield
+
 
 app = FastAPI(
     title="workout_app",
@@ -25,12 +25,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/generate_workout")
 def generate_workout():
     now = datetime.now(timezone.utc)
     workout = wm.generate_workout(now=now)
     return {
-        "at": workout.at.isoformat() if hasattr(workout, 'at') else now.isoformat(),
+        "at": workout.at.isoformat() if hasattr(workout, "at") else now.isoformat(),
         "items": [
             {
                 "exercise_id": item.exercise_id,

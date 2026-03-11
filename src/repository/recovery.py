@@ -9,13 +9,13 @@ class RecoveryWindow:
     min: timedelta
     max: timedelta
 
+
 RECOVERY: dict[Muscle, RecoveryWindow] = {
     # Upper body push
     Muscle.CHEST: RecoveryWindow(timedelta(days=2), timedelta(days=3)),
     Muscle.FRONT_DELTS: RecoveryWindow(timedelta(days=1), timedelta(days=2)),
     Muscle.SIDE_DELTS: RecoveryWindow(timedelta(days=1), timedelta(days=2)),
     Muscle.TRICEPS: RecoveryWindow(timedelta(days=2), timedelta(days=3)),
-
     # Upper body pull
     Muscle.LATS: RecoveryWindow(timedelta(days=2), timedelta(days=4)),
     Muscle.UPPER_BACK: RecoveryWindow(timedelta(days=2), timedelta(days=4)),
@@ -24,12 +24,10 @@ RECOVERY: dict[Muscle, RecoveryWindow] = {
     Muscle.FOREARMS: RecoveryWindow(timedelta(days=1), timedelta(days=2)),
     Muscle.TRAPS: RecoveryWindow(timedelta(days=2), timedelta(days=3)),
     Muscle.NECK: RecoveryWindow(timedelta(days=1), timedelta(days=2)),
-
     # Core
     Muscle.ABS: RecoveryWindow(timedelta(days=1), timedelta(days=2)),
     Muscle.OBLIQUES: RecoveryWindow(timedelta(days=1), timedelta(days=2)),
     Muscle.LOWER_BACK: RecoveryWindow(timedelta(days=2), timedelta(days=4)),
-
     # Lower body
     Muscle.QUADS: RecoveryWindow(timedelta(days=3), timedelta(days=5)),
     Muscle.HAMSTRINGS: RecoveryWindow(timedelta(days=3), timedelta(days=4)),
