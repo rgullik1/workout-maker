@@ -53,6 +53,9 @@ class RecoveryStatus(str, Enum):
     OVERDUE = "overdue"
 
 
+PREFERENCES: dict[Muscle, float] = {}
+
+
 def recovery_status(muscle: Muscle, now: datetime) -> RecoveryStatus:
     last = last_trained.get(muscle)
     if last is None:
@@ -108,7 +111,12 @@ def trainable_muscles(now: datetime) -> list[Muscle]:
     return out
 
 
-def generate_workout(now: datetime, reps: int = 30) -> Workout:
+def generate_workout(
+    now: datetime,
+    reps: int = 30,
+    preferences: dict[Muscle, float] | None = None,
+) -> Workout:
+    preferences = preferences or {}
     candidates = trainable_muscles(now)
 
     def status_priority(m: Muscle) -> int:
@@ -121,12 +129,16 @@ def generate_workout(now: datetime, reps: int = 30) -> Workout:
             return 2
         return 3
 
-    candidates.sort(key=status_priority)
+    def candidate_score(m: Muscle) -> tuple[int, float]:
+        pref = preferences.get(m, 1.0)
+        return (status_priority(m), -pref)
+
+    candidates.sort(key=candidate_score)
 
     performed: list[PerformedExercise] = []
     used_exercise_ids: set[str] = set()
     exercise_limit = 5
-    # exercises_added = 0
+
     for muscle in candidates:
         status = recovery_status(muscle, now)
         if status not in (
@@ -137,16 +149,21 @@ def generate_workout(now: datetime, reps: int = 30) -> Workout:
             continue
 
         best_id: str | None = None
-        best_activation = 0.0
+        best_score = 0.0
 
         for ex_id, ex in EXERCISES.items():
+            if ex_id in used_exercise_ids:
+                continue
+
             activation = ex.muscles.get(muscle, 0.0)
             if activation <= 0.0:
                 continue
-            if ex_id in used_exercise_ids:
-                continue
-            if activation > best_activation:
-                best_activation = activation
+
+            pref = preferences.get(muscle, 1.0)
+            score = activation * pref
+
+            if score > best_score:
+                best_score = score
                 best_id = ex_id
 
         if best_id is None:
@@ -154,8 +171,9 @@ def generate_workout(now: datetime, reps: int = 30) -> Workout:
 
         used_exercise_ids.add(best_id)
         performed.append(PerformedExercise(exercise_id=best_id, reps=reps))
+
         if len(performed) >= exercise_limit:
-            return Workout(at=now, items=performed)
+            break
 
     return Workout(at=now, items=performed)
 

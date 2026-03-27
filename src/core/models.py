@@ -32,3 +32,8 @@ class Exercise:
     id: str
     name: str
     muscles: Mapping[Muscle, float]
+
+
+@dataclass(frozen=True)
+class MusclePreference:
+    weight: float  # 1.0 = neutral, >1 prefer more, <1 prefer less

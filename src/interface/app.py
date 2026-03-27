@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import core.workout_maker as wm
 from fastapi.middleware.cors import CORSMiddleware
 
+from core.models import Muscle
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,12 +28,23 @@ app.add_middleware(
 )
 
 
-@app.get("/generate_workout")
-def generate_workout():
+@app.post("/generate_workout")
+def generate_workout(payload: dict = Body(default={})):
     now = datetime.now(timezone.utc)
-    workout = wm.generate_workout(now=now)
+
+    raw_preferences = payload.get("preferences", {})
+    preferences: dict[Muscle, float] = {}
+
+    for key, value in raw_preferences.items():
+        try:
+            preferences[Muscle(key)] = float(value)
+        except Exception:
+            continue
+
+    workout = wm.generate_workout(now=now, preferences=preferences)
+
     return {
-        "at": workout.at.isoformat() if hasattr(workout, "at") else now.isoformat(),
+        "at": workout.at.isoformat(),
         "items": [
             {
                 "exercise_id": item.exercise_id,
